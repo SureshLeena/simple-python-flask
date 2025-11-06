@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow 2: Push Notification flow</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #ff9900;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .notes {
+            margin-top: 30px;
+            padding: 25px;
+            background: #fff4e1;
+            border-left: 4px solid #ff9900;
+            border-radius: 5px;
+        }
+        .notes h3 {
+            margin-top: 0;
+            color: #ff9900;
+            font-size: 1.5em;
+        }
+        .notes ol {
+            color: #4a5568;
+            line-height: 2;
+        }
+        .notes li {
+            margin-bottom: 12px;
+        }
+        .notes ul {
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .highlight {
+            background: #ffebee;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: #e91e63;
+        }
+        .section-header {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Flow 2: Push Notification flow</h1>
+        <p class="subtitle">App in background/killed/other screen - Opening via Push/VoIP notification with dynamic screen routing based on call status</p>
+
+        <div class="mermaid">
+flowchart TD
+    Start([App NOT in Waiting Room Screen<br/>Opened Other Screen OR<br/>Minimized OR Killed])
+    
+    Start --> ReceiveNotif[Receive Push Notification FCM Android<br/>OR VoIP Notification iOS PushKit<br/>Payload Contains:<br/>VisitId + Physician Portal Info<br/>Old Portal or New Portal]
+    
+    ReceiveNotif --> UserAction[User Clicks Notification OR<br/>Accepts VoIP Call]
+    
+    UserAction --> AppOpens[App Opens]
+    
+    AppOpens --> ParsePayload[Parse Notification Payload:<br/>Extract VisitId + Physician Portal Info<br/>Old Portal or New Portal]
+    
+    ParsePayload --> GetVisit[API Call: Get Visit Details<br/>Using VisitId from Payload<br/>Response Contains:<br/>Current Call Status + Visit Info]
+    
+    GetVisit --> CallStatus{Check Current Call Status<br/>from Visit Details}
+    
+    CallStatus -->|Queued| SearchDoctor[Navigate to<br/>Search Doctor Screen<br/>Proceed as Flow 1]
+    CallStatus -->|Scheduled OR<br/>In Waiting Room| WaitingRoom[Navigate to<br/>Waiting Room Screen]
+    CallStatus -->|In Call| VideoCall[Navigate to<br/>Video Call Screen]
+    CallStatus -->|Other Status| History[Navigate to<br/>Consultation History Page]
+    
+    History --> EndHistory([End Flow])
+    
+    SearchDoctor --> PortalDecision{Which Portal Did<br/>Physician Join From?}
+    WaitingRoom --> PortalDecision
+    VideoCall --> PortalDecision
+    
+    PortalDecision -->|Old Portal| UseSocketIO[Use Socket.io<br/>for Communication]
+    PortalDecision -->|New Portal| UseSignalR[Use SignalR<br/>for Communication]
+    
+    UseSocketIO --> GetDetails[API Call: Get Video Call Credentials<br/>OpenTok SessionId<br/>OpenTok Token<br/>OpenTok AppId]
+    UseSignalR --> GetDetails
+    
+    GetDetails --> Separator[IN VIDEO CALL PAGE]
+    
+    Separator --> ChatDecision{Establish Chat Connection<br/>Based on Type}
+    
+    ChatDecision -->|Socket.io| SocketChat[Establish Socket.io<br/>Chat Connection]
+    ChatDecision -->|SignalR| SignalRChat[Establish SignalR<br/>Chat Connection]
+    
+    SocketChat --> VideoConn[Establish OpenTok Video Connection<br/>Using SessionId, Token, AppId]
+    SignalRChat --> VideoConn
+    
+    VideoConn --> Active[Video Call & Chat Active<br/>Both Connections Established]
+    
+    Active --> EndCall[Physician Ends Call<br/>Receive End Call Event<br/>via Socket.io or SignalR]
+    
+    EndCall --> CloseConn[Close All Connections<br/>Video Call OpenTok<br/>Chat Socket.io/SignalR]
+    
+    CloseConn --> Feedback[Navigate to Feedback Page]
+    
+    Feedback --> End([End Flow])
+    
+    classDef flowStyle fill:#fff4e1,stroke:#ff9900,stroke-width:3px,color:#663300,font-weight:bold
+    classDef decisionStyle fill:#ffe1e1,stroke:#cc0000,stroke-width:3px,color:#660000,font-weight:bold
+    classDef successStyle fill:#d4edda,stroke:#28a745,stroke-width:4px,color:#155724,font-weight:bold
+    classDef startStyle fill:#e0e7ff,stroke:#4c51bf,stroke-width:3px,font-weight:bold
+    classDef highlightStyle fill:#ffebee,stroke:#e91e63,stroke-width:3px,color:#c2185b,font-weight:bold
+    classDef endStyle fill:#fee2e2,stroke:#dc2626,stroke-width:3px,font-weight:bold
+    classDef screenStyle fill:#f3e5f5,stroke:#9c27b0,stroke-width:3px,font-weight:bold
+    classDef separatorStyle fill:#f0f0f0,stroke:#666666,stroke-width:4px,font-weight:bold
+    classDef historyStyle fill:#e8f5e9,stroke:#4caf50,stroke-width:3px,font-weight:bold
+    classDef searchStyle fill:#e3f2fd,stroke:#2196f3,stroke-width:3px,font-weight:bold
+    
+    class ReceiveNotif,ParsePayload,GetVisit,GetDetails,ChatDecision,SocketChat,SignalRChat,CloseConn,EndCall flowStyle
+    class CallStatus,PortalDecision,ChatDecision decisionStyle
+    class Active successStyle
+    class Start startStyle
+    class UserAction,UseSocketIO,UseSignalR,VideoConn highlightStyle
+    class End,EndHistory endStyle
+    class AppOpens,WaitingRoom,VideoCall,Feedback screenStyle
+    class Separator separatorStyle
+    class History historyStyle
+    class SearchDoctor searchStyle
+        </div>
+
+        <div class="notes">
+            <h3>Flow 2 - Corrected Sequence</h3>
+            
+            <div class="section-header">PART 1: NOTIFICATION TO PAYLOAD PARSING</div>
+            <ol>
+                <li>
+                    <strong>App State:</strong> App is NOT in Waiting Room screen. Can be:
+                    <ul>
+                        <li><span class="highlight">Opened</span> but on a different screen</li>
+                        <li><span class="highlight">Minimized</span> in background</li>
+                        <li><span class="highlight">Killed</span> (completely closed)</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Receive Notification:</strong> App receives:
+                    <ul>
+                        <li><span class="highlight">FCM Push Notification</span> (Android)</li>
+                        <li><span class="highlight">VoIP Notification/PushKit</span> (iOS)</li>
+                        <li>Payload contains: <strong>VisitId + Physician Portal Info</strong> (Old/New Portal)</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>User Action:</strong> User clicks notification or accepts VoIP call
+                </li>
+                <li>
+                    <strong>App Opens:</strong> Application launches/comes to foreground
+                </li>
+                <li>
+                    <strong>Parse Notification Payload:</strong> Immediately parse payload to extract:
+                    <ul>
+                        <li><span class="highlight">VisitId</span></li>
+                        <li><span class="highlight">Physician Portal Info</span> (Old Portal or New Portal)</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="section-header">PART 2: GET VISIT DETAILS & ROUTE BY STATUS</div>
+            <ol start="6">
+                <li>
+                    <strong>API Call - Get Visit Details:</strong> Make API call using <span class="highlight">VisitId from payload</span>
+                </li>
+                <li>
+                    <strong>Check Call Status from Visit Details:</strong> Response contains current call status. Route based on status:
+                    <ul>
+                        <li><span class="highlight">Queued</span> → Navigate to <strong>Search Doctor Screen</strong> (proceed same as Flow 1)</li>
+                        <li><span class="highlight">Scheduled</span> OR <span class="highlight">In Waiting Room</span> → Navigate to <strong>Waiting Room Screen</strong></li>
+                        <li><span class="highlight">In Call</span> → Navigate directly to <strong>Video Call Screen</strong></li>
+                        <li><span class="highlight">Other Status</span> → Navigate to <strong>Consultation History Page</strong> and <strong>End Flow</strong></li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="section-header">PART 3: PORTAL DECISION & CONNECTION SETUP</div>
+            <ol start="8">
+                <li>
+                    <strong>Portal Decision:</strong> Use physician portal info from parsed payload:
+                    <ul>
+                        <li><span class="highlight">Old Physician Portal</span> → Use Socket.io for communication</li>
+                        <li><span class="highlight">New Physician Portal</span> → Use SignalR for communication</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Get Video Call Credentials:</strong> Call API to get:
+                    <ul>
+                        <li><span class="highlight">OpenTok SessionId, Token, AppId</span></li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="section-header">PART 4: VIDEO CALL PAGE</div>
+            <ol start="10">
+                <li>
+                    <strong>Establish Chat Connection:</strong> Create Socket.io OR SignalR chat connection (based on portal decision)
+                </li>
+                <li>
+                    <strong>Establish Video Connection:</strong> Create <span class="highlight">OpenTok video connection</span> using SessionId, Token, AppId
+                </li>
+                <li>
+                    <strong>Active Call:</strong> Both video (OpenTok) and chat (Socket.io/SignalR) connections are now active
+                </li>
+            </ol>
+            
+            <div class="section-header">PART 5: ENDING THE CALL</div>
+            <ol start="13">
+                <li>
+                    <strong>End Call Event:</strong> When physician ends the call, receive end call event through Socket.io or SignalR
+                </li>
+                <li>
+                    <strong>Close All Connections:</strong> Properly close both:
+                    <ul>
+                        <li>OpenTok video connection</li>
+                        <li>Socket.io or SignalR chat connection</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Feedback Page:</strong> Navigate to Feedback page
+                </li>
+                <li>
+                    <strong>End:</strong> Flow complete
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                nodeSpacing: 60,
+                rankSpacing: 90
+            }
+        });
+    </script>
+</body>
+</html>
